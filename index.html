@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>3D Earth Fighter Flight Simulator (Real Satellite Earth)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #030712; touch-action: none; font-family: monospace; }
+    #canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+    #hud { position: absolute; inset: 0; pointer-events: none; color: #34d399; font-size: 12px; }
+    .hud-box { background: rgba(0,0,0,0.68); border: 1px solid rgba(52,211,153,0.45); border-radius: 6px; padding: 6px 10px; }
+    #compass-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); min-width: 240px; height: 32px; border-bottom: 2px solid #34d399; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    #airspeed-tape { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); text-align: left; }
+    #altitude-tape { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); text-align: right; }
+    #crosshair { position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin-left: -8px; margin-top: -8px; border: 2px solid #34d399; border-radius: 50%; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="hud">
+    <div id="compass-bar" class="hud-box">
+      <span id="heading-val">HDG: 053°</span>
+      <span style="color:#7dd3fc;font-size:10px;">EARTH 1:1 • REAL SATELLITE</span>
+    </div>
+    <div id="airspeed-tape" class="hud-box">
+      <div>AIRSPEED</div>
+      <div id="speed-val" style="font-size:20px;font-weight:bold;color:#fff;">428</div>
+      <div>KNOTS</div>
+    </div>
+    <div id="altitude-tape" class="hud-box">
+      <div>ALTITUDE</div>
+      <div id="alt-val" style="font-size:20px;font-weight:bold;color:#fff;">15,748</div>
+      <div>FEET</div>
+    </div>
+    <div id="crosshair"></div>
+  </div>
+  <script>
+    const EARTH_RADIUS = 6371000;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.5, 25000000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+    scene.add(new THREE.DirectionalLight(0xfffaed, 2.2));
+    scene.add(new THREE.HemisphereLight(0x38bdf8, 0x0f172a, 0.85));
+
+    const earthCanvas = document.createElement('canvas');
+    earthCanvas.width = 2048; earthCanvas.height = 1024;
+    const eCtx = earthCanvas.getContext('2d');
+    eCtx.fillStyle = '#092442';
+    eCtx.fillRect(0, 0, 2048, 1024);
+    const earthTex = new THREE.CanvasTexture(earthCanvas);
+    for (let ty = 0; ty < 4; ty++) {
+      for (let tx = 0; tx < 4; tx++) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          for (let py = 0; py < 1024; py++) {
+            const latDeg = 90 - ((py + 0.5) / 1024) * 180;
+            if (Math.abs(latDeg) > 85.0511) continue;
+            const lr = latDeg * Math.PI / 180;
+            const vm = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2;
+            const gy = vm * 4;
+            if (Math.floor(gy) !== ty) continue;
+            const sy = Math.min(255, Math.floor((gy - ty) * 256));
+            eCtx.drawImage(img, 0, sy, 256, 1, tx * 512, py, 512, 1);
+          }
+          earthTex.needsUpdate = true;
+        };
+        img.src = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/2/' + ty + '/' + tx;
+      }
+    }
+    const earthMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(EARTH_RADIUS, 128, 96),
+      new THREE.MeshStandardMaterial({ map: earthTex, roughness: 0.65, metalness: 0.08 })
+    );
+    earthMesh.frustumCulled = false;
+    earthMesh.position.set(0, -(EARTH_RADIUS + 4800), 0);
+    scene.add(earthMesh);
+    function animate() {
+      requestAnimationFrame(animate);
+      camera.position.set(0, 8, 28);
+      camera.lookAt(0, 0, -20);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
